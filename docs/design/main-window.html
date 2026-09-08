@@ -1,0 +1,670 @@
+<title>Fuwa ゆるふわ案</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --ground: #F2F0F7;
+    --surface: #FFFFFF;
+    --veil: #FAF9FD;
+    --ink: #2A2436;
+    --ink-soft: #6E6880;
+    --ink-faint: #A29CB3;
+    --hair: #E8E4F0;
+    --accent: #7C6BD8;
+    --accent-soft: #EBE6FA;
+    --term-bg: #1E1A28;
+    --term-ink: #D8D2E4;
+    --term-dim: #7E7691;
+    --soft: 0 2px 4px rgba(42,36,54,.03), 0 14px 30px -16px rgba(42,36,54,.22);
+    --round: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    --rack: 11px minmax(172px, 204px) 4px minmax(190px, 1fr);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #15121C;
+      --surface: #221E2C;
+      --veil: #1B1824;
+      --ink: #EEEAF6;
+      --ink-soft: #A9A2BC;
+      --ink-faint: #78718C;
+      --hair: #2F2A3D;
+      --accent: #A392F0;
+      --accent-soft: #2E2842;
+      --soft: 0 2px 4px rgba(0,0,0,.3), 0 18px 40px -18px rgba(0,0,0,.75);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #15121C;
+    --surface: #221E2C;
+    --veil: #1B1824;
+    --ink: #EEEAF6;
+    --ink-soft: #A9A2BC;
+    --ink-faint: #78718C;
+    --hair: #2F2A3D;
+    --accent: #A392F0;
+    --accent-soft: #2E2842;
+    --soft: 0 2px 4px rgba(0,0,0,.3), 0 18px 40px -18px rgba(0,0,0,.75);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--round);
+    font-size: 14px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 10px; }
+
+  .page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 44px 24px 72px;
+    display: flex;
+    flex-direction: column;
+    gap: 26px;
+  }
+
+  .page-head h1 {
+    font-size: 27px;
+    font-weight: 700;
+    margin: 0 0 4px;
+    letter-spacing: .01em;
+    text-wrap: balance;
+  }
+  .page-head p { margin: 0; color: var(--ink-soft); max-width: 60ch; }
+
+  /* ---------- window ---------- */
+
+  .win {
+    background: var(--surface);
+    border-radius: 22px;
+    box-shadow: var(--soft);
+    overflow: hidden;
+    display: flex;
+    min-width: 0;
+    min-height: 540px;
+  }
+
+  /* ---------- terminal ---------- */
+
+  .term {
+    width: 372px;
+    flex: none;
+    background: var(--term-bg);
+    color: var(--term-ink);
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .term-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 14px;
+    height: 40px;
+    flex: none;
+    color: var(--term-dim);
+    font-size: 11.5px;
+  }
+  .term-bar .led {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #6BC79A;
+    box-shadow: 0 0 0 3px rgba(107,199,154,.16);
+  }
+  .term-bar .tag { font-family: var(--mono); color: #B7AEF0; }
+
+  .term pre {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    margin: 0;
+    padding: 4px 14px 16px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    line-height: 1.72;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .term .u { color: #F0C98A; }
+  .term .a { color: #A9E5C4; }
+  .term .t { color: #8FC4E8; }
+  .term .d { color: var(--term-dim); }
+  .term .box { color: #4B4460; }
+  .term .cur {
+    display: inline-block;
+    width: 7px;
+    height: 13px;
+    background: #B7AEF0;
+    vertical-align: -2px;
+  }
+
+  /* ---------- stage ---------- */
+
+  .stage {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--veil);
+    padding: 20px 22px 18px;
+    gap: 20px;
+  }
+
+  .top { display: flex; align-items: center; gap: 13px; }
+  .top .song {
+    flex: 1;
+    min-width: 0;
+    font-size: 15px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-left: 4px;
+  }
+  .actions { display: flex; align-items: center; gap: 9px; }
+
+  .deck { display: flex; align-items: center; justify-content: center; gap: 14px; }
+
+  .step {
+    width: 34px; height: 34px;
+    flex: none;
+    border-radius: 50%;
+    color: var(--ink-soft);
+    display: grid;
+    place-items: center;
+  }
+  .step:hover { background: var(--ground); color: var(--ink); }
+  .step svg { display: block; }
+
+  .mvol { width: 120px; display: flex; flex-direction: column; gap: 4px; }
+  .mvol .fader { flex: none; width: 100%; height: 16px; }
+  .mvol .mmeter {
+    height: 3px;
+    border-radius: 999px;
+    background: var(--ground);
+    position: relative;
+    overflow: hidden;
+  }
+  .mvol .mmeter .lv {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 0;
+    border-radius: 999px;
+    background: var(--accent);
+    opacity: .75;
+  }
+
+  .ghost {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    padding: 7px 15px;
+    border-radius: 999px;
+    background: var(--surface);
+  }
+  .ghost:hover { color: var(--ink); }
+
+  .play {
+    width: 44px; height: 44px;
+    flex: none;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    display: grid;
+    place-items: center;
+    box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--accent) 70%, transparent);
+    transition: transform .18s ease;
+  }
+  .play:hover { transform: scale(1.05); }
+  .play svg { display: block; }
+
+  .times {
+    display: flex;
+    gap: 7px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+  }
+  .times .total { color: var(--ink-faint); }
+
+  /* ---------- rack ---------- */
+
+  .rack { position: relative; flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .rows { display: flex; flex-direction: column; gap: 6px; }
+
+  .ruler {
+    display: grid;
+    grid-template-columns: var(--rack);
+    gap: 9px;
+    align-items: center;
+    padding: 0 12px;
+    height: 16px;
+  }
+  .axis { position: relative; height: 100%; cursor: pointer; grid-column: 4; }
+  .axis .n {
+    position: absolute;
+    top: 0;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink-faint);
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+  .axis .n:first-child { transform: none; }
+
+  .lane { position: relative; height: 40px; border-radius: 8px; background: var(--ground); overflow: hidden; }
+  .note { position: absolute; height: 3px; border-radius: 1.5px; background: var(--accent); }
+
+  .playhead {
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 1px;
+    background: var(--ink-soft);
+    pointer-events: none;
+  }
+
+  /* ---------- band ---------- */
+
+  .strip {
+    display: grid;
+    grid-template-columns: var(--rack);
+    gap: 9px;
+    align-items: center;
+    min-width: 0;
+    background: var(--surface);
+    border-radius: 14px;
+    padding: 9px 12px;
+  }
+  .strip.muted { opacity: .42; }
+
+  .no {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-faint);
+    text-align: center;
+  }
+
+  .main { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .line { display: flex; align-items: center; gap: 9px; min-width: 0; }
+
+  .tog { display: flex; gap: 4px; flex: none; }
+  .tog button {
+    width: 20px; height: 20px;
+    border-radius: 6px;
+    font-size: 9.5px;
+    font-weight: 700;
+    color: var(--ink-faint);
+    background: var(--ground);
+    display: grid;
+    place-items: center;
+  }
+  .tog button:hover { color: var(--ink); }
+  .tog button.on { background: var(--accent); color: #fff; }
+
+  .nm {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    font-size: 13px;
+    font-weight: 500;
+    text-align: left;
+  }
+  .nm .lbl { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  button.nm {
+    padding: 3px 8px;
+    margin: -3px -8px;
+    border-radius: 8px;
+    transition: background .12s ease;
+  }
+  button.nm .caret { flex: none; display: block; color: var(--ink-soft); }
+  button.nm:hover { background: var(--ground); }
+  button.nm:hover .caret { color: var(--accent); }
+
+  .fader { flex: 1; min-width: 0; position: relative; height: 16px; display: flex; align-items: center; cursor: pointer; }
+  .fader .rail { width: 100%; height: 6px; border-radius: 999px; background: var(--ground); }
+  .fader .grip {
+    position: absolute;
+    top: 50%;
+    width: 13px; height: 18px;
+    border-radius: 5px;
+    background: var(--accent);
+    transform: translate(-50%, -50%);
+  }
+  .fader:hover .grip { filter: brightness(1.1); }
+
+  .pan { width: 34px; height: 4px; border-radius: 999px; background: var(--ground); position: relative; flex: none; }
+  .pan::before {
+    content: "";
+    position: absolute;
+    left: 50%; top: -2px;
+    width: 1px; height: 8px;
+    background: var(--hair);
+  }
+  .pan .dot {
+    position: absolute;
+    top: 50%;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--ink-faint);
+    transform: translate(-50%, -50%);
+  }
+
+  .vmeter {
+    width: 4px; height: 40px;
+    border-radius: 999px;
+    background: var(--ground);
+    position: relative;
+    overflow: hidden;
+  }
+  .vmeter .lv {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 0;
+    border-radius: 999px;
+    background: var(--accent);
+    opacity: .75;
+  }
+
+  .go {
+    background: var(--accent);
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 500;
+    padding: 8px 18px;
+    border-radius: 999px;
+  }
+  .go:hover { filter: brightness(1.07); }
+
+  /* ---------- notes ---------- */
+
+  .notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(226px, 1fr)); gap: 20px; }
+  .note-card h2 { margin: 0 0 3px; font-size: 14px; font-weight: 700; }
+  .note-card p { margin: 0; font-size: 13px; color: var(--ink-soft); line-height: 1.75; }
+
+  @media (max-width: 880px) {
+    .win { flex-direction: column; min-height: 0; }
+    .term { width: auto; }
+    .term pre { max-height: 240px; }
+  }
+</style>
+
+<div class="page">
+  <header class="page-head">
+    <h1>fuwa — ゆるふわ案</h1>
+    <p>DAW の部品を並べるのをやめた案。曲はトラックの表ではなく、鳴っている楽器の集まりとして見せる。時間軸は曲全体に一本だけ。会話は claude の TUI をそのまま埋める。</p>
+  </header>
+
+  <div class="win">
+    <div class="term">
+      <div class="term-bar">
+        <span class="led"></span><span class="tag">claude</span>
+      </div>
+      <pre><span class="u">&gt; 夜の港町っぽい落ち着いた BGM。ループ前提で 32 小節。</span>
+
+<span class="a">⏺</span> 92 BPM の 4/4 で組みます。17 小節目から少し陰りが
+  出るようにしてみますね。
+
+<span class="a">⏺</span> <span class="t">fuwa</span>(write drums,bass,keys 1-32)
+  <span class="d">⎿  32 小節を書き込みました</span>
+
+<span class="u">&gt; いいね。こういう雰囲気で参考になる曲ってある？</span>
+
+<span class="a">⏺</span> テンポと質感で近いのは 90 年代の lo-fi 寄りの
+  ジャズ・ヒップホップです。ローズ系の鍵盤にブラシ
+  のドラム、ベースを歩かせる編成が定番。もっと寂し
+  さを足すなら上物を減らしてリバーブを長めに。
+
+<span class="u">&gt; じゃあ Lead を 17 小節目から足してみて。</span>
+
+<span class="a">⏺</span> <span class="t">fuwa</span>(write lead 17-28)
+  <span class="d">⎿  12 小節を書き込みました</span>
+
+<span class="box">╭──────────────────────────────────────────╮</span>
+<span class="box">│</span> &gt; drums の 17-20、手数を減らしてキック    <span class="box">│</span>
+<span class="box">│</span>   だけ残して<span class="cur"></span>                            <span class="box">│</span>
+<span class="box">╰──────────────────────────────────────────╯</span>
+  <span class="d">⏎ send   ⇧⏎ newline</span></pre>
+    </div>
+
+    <div class="stage">
+      <div class="top">
+        <div class="song">harbor lights</div>
+        <div class="actions">
+          <button class="ghost">Save</button>
+          <button class="go">Export</button>
+        </div>
+      </div>
+
+      <div class="rack" id="rack">
+        <div class="ruler"><span></span><span></span><span></span><div class="axis" id="axis"></div></div>
+        <div class="rows" id="band"></div>
+        <div class="playhead" id="head" hidden></div>
+      </div>
+
+      <div class="deck">
+        <button class="step" id="home" aria-label="Back to start">
+          <svg width="14" height="13" viewBox="0 0 14 13" aria-hidden="true">
+            <path d="M2.1 1.7v9.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M12.4 2.3v8.4a.6.6 0 0 1-.93.5L5.14 6.99a.6.6 0 0 1 0-1L11.47 1.8a.6.6 0 0 1 .93.5Z" fill="currentColor"/>
+          </svg>
+        </button>
+        <button class="play" id="play" aria-label="Play">
+          <svg width="15" height="17" viewBox="0 0 17 19" aria-hidden="true"><path d="M2 1.6v15.8a.8.8 0 0 0 1.22.68l12.6-7.9a.8.8 0 0 0 0-1.36L3.22.92A.8.8 0 0 0 2 1.6Z" fill="currentColor"/></svg>
+        </button>
+        <div class="times"><span id="now">0:20</span><span class="total">/ 1:23</span></div>
+        <div class="mvol" aria-label="Master volume">
+          <div class="fader"><div class="rail"></div><div class="grip" style="left:78%"></div></div>
+          <div class="mmeter"><span class="lv" id="mlv" style="width:62%"></span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note-card">
+      <h2>レーンは見るだけ</h2>
+      <p>スロットを左に固めたぶん横幅が余るので、ノートを出す。編集ハンドルもグリッドのスナップもズームも置かない。直したいところは言葉で頼む。</p>
+    </div>
+    <div class="note-card">
+      <h2>識別は音源の名前に任せる</h2>
+      <p>役割名も色分けも「誰が決めるのか」が未定なので、挿さっている音源の名前をそのまま出す。名前が読めれば足りるので、アイコンや色は要らない。</p>
+    </div>
+    <div class="note-card">
+      <h2>数字を消した</h2>
+      <p>dB もサンプルレートもレイテンシも、見たところで何もしない。残したのは経過時間だけ。つまみは位置で覚える。</p>
+    </div>
+    <div class="note-card">
+      <h2>会話は素の TUI</h2>
+      <p>claude / codex の端末をそのまま埋める。自前のチャット UI を作ると、スラッシュコマンドも承認フローも作り直しになり、本家の変更に追随し続けることになる。</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  const BARS = 32;
+  const SONG = BARS * 4 * 60 / 92;
+
+  /* 表示名は VSTi の名前をそのまま */
+  const PARTS = [
+    { plug: "Surge XT",       vol: .74, pan: 0,    base: .62, from: 4,  to: 32, kind: "drums", seed: 11 },
+    { plug: "OB-Xd",          vol: .70, pan: 0,    base: .52, from: 4,  to: 32, kind: "bass",  seed: 23 },
+    { plug: "Dexed",          vol: .62, pan: -.24, base: .40, from: 0,  to: 32, kind: "keys",  seed: 37 },
+    { plug: "Vital",          vol: .52, pan: .31,  base: .28, from: 8,  to: 32, kind: "pad",   seed: 41 },
+    { plug: "TAL-NoiseMaker", vol: .66, pan: .12,  base: .46, from: 16, to: 28, kind: "lead",  seed: 59 }
+  ];
+
+  const BEATS = BARS * 4;
+  const rnd = (seed) => { let s = seed; return () => (s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff; };
+
+  function lane(p) {
+    const r = rnd(p.seed), out = [];
+    const put = (s, d, pit, o = 1) => out.push(
+      `<span class="note" style="left:${(s / BEATS) * 100}%;width:${Math.max((d / BEATS) * 100, .3)}%;top:${(1 - pit) * 30 + 5}px;opacity:${o}"></span>`
+    );
+
+    for (let bar = 0; bar < BARS; bar++) {
+      const b = bar * 4, quiet = bar < p.from, out_ = bar >= p.to;
+      if (out_) { break; }
+
+      if (p.kind === "drums") {
+        for (let h = 0; h < 8; h++) { if (!quiet || h % 4 === 0) { put(b + h / 2, .35, .82, quiet ? .4 : .7); } }
+        if (!quiet) {
+          put(b, .5, .08); put(b + 2, .5, .08);
+          put(b + 1, .5, .42); put(b + 3, .5, .42);
+          if (r() > .72) { put(b + 3.5, .4, .42, .8); }
+        }
+      } else if (p.kind === "bass") {
+        if (quiet) { continue; }
+        const root = .12 + Math.floor(r() * 4) * .05;
+        put(b, 1.7, root); put(b + 2, .9, root); put(b + 3, .8, root + .06, .8);
+      } else if (p.kind === "keys") {
+        const base = .40 + Math.floor(r() * 3) * .06;
+        for (let s = 0; s < 4; s += 2) {
+          [0, .09, .17].forEach((iv, n) => put(b + s, 1.85, base + iv, .9 - n * .08));
+        }
+      } else if (p.kind === "pad") {
+        if (quiet) { continue; }
+        put(b, 3.9, .58 + (r() > .5 ? .08 : 0), .55);
+        put(b, 3.9, .74, .4);
+      } else if (p.kind === "lead") {
+        if (quiet) { continue; }
+        let t = b;
+        while (t < b + 4) {
+          const d = [.5, .5, 1, 1.5][Math.floor(r() * 4)];
+          if (r() > .22) { put(t, d * .85, .60 + r() * .33, .95); }
+          t += d;
+        }
+      }
+    }
+    return out.join("");
+  }
+
+  const band = document.getElementById("band");
+  PARTS.forEach((p, i) => {
+    band.insertAdjacentHTML("beforeend", `
+      <div class="strip" data-i="${i}">
+        <span class="no">${i + 1}</span>
+        <div class="main">
+          <div class="line">
+            <div class="tog"><button data-k="M">M</button><button data-k="S">S</button></div>
+            <button class="nm" aria-label="Change instrument">
+              <span class="lbl">${p.plug}</span>
+              <svg class="caret" width="10" height="7" viewBox="0 0 10 7" aria-hidden="true"><path d="M1.2 1.6 5 5.2 8.8 1.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+          <div class="line">
+            <div class="fader"><div class="rail"></div><div class="grip" style="left:${p.vol * 100}%"></div></div>
+            <div class="pan"><span class="dot" style="left:${50 + p.pan * 50}%"></span></div>
+          </div>
+        </div>
+        <div class="vmeter"><span class="lv" data-base="${p.base}" style="height:${p.base * 100}%"></span></div>
+        <div class="lane">${lane(p)}</div>
+      </div>`);
+  });
+
+
+  const axis = document.getElementById("axis");
+  for (let bar = 0; bar < BARS; bar += 4) {
+    axis.insertAdjacentHTML("beforeend",
+      `<span class="n" style="left:${(bar / BARS) * 100}%">${bar + 1}</span>`);
+  }
+
+  document.querySelectorAll(".tog button").forEach((b) => {
+    b.addEventListener("click", () => {
+      b.classList.toggle("on");
+      const strip = b.closest(".strip");
+      strip.classList.toggle("muted", strip.querySelector('[data-k="M"]').classList.contains("on"));
+    });
+  });
+
+  const meters = [...document.querySelectorAll(".vmeter .lv[data-base]")];
+  const mlv = document.getElementById("mlv");
+  const nowEl = document.getElementById("now");
+  const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const rack = document.getElementById("rack"), headEl = document.getElementById("head");
+
+  let pos = .25;
+
+  /* the playhead spans one shared column, so measure a real lane for its geometry */
+  function paint() {
+    const l = band.querySelector(".lane");
+    if (l) {
+      const a = l.getBoundingClientRect(), b = rack.getBoundingClientRect();
+      headEl.style.left = (a.left - b.left + a.width * pos) + "px";
+      headEl.hidden = false;
+    }
+    const t = pos * SONG;
+    nowEl.textContent = `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+  }
+  new ResizeObserver(paint).observe(rack);
+
+  function levels(live) {
+    const bar = pos * BARS;
+    let sum = 0;
+    PARTS.forEach((p, i) => {
+      const on = bar >= p.from && bar < p.to;
+      const jitter = live && !calm ? (Math.random() - .4) * .34 : 0;
+      const v = on ? Math.max(.05, Math.min(1, p.base + jitter)) : .02;
+      meters[i].style.height = v * 100 + "%";
+      sum += v;
+    });
+    mlv.style.width = Math.min(96, (sum / PARTS.length) * 118) + "%";
+  }
+
+  paint();
+  levels(false);
+
+  axis.addEventListener("pointerdown", (e) => {
+    const seek = (ev) => {
+      const r = axis.getBoundingClientRect();
+      pos = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
+      paint(); levels(playing);
+    };
+    seek(e);
+    axis.setPointerCapture(e.pointerId);
+    axis.addEventListener("pointermove", seek);
+    axis.addEventListener("pointerup", () => axis.removeEventListener("pointermove", seek), { once: true });
+  });
+
+  document.getElementById("home").addEventListener("click", () => {
+    pos = 0;
+    paint();
+    levels(playing);
+  });
+
+  const ICON_PLAY ='<svg width="15" height="17" viewBox="0 0 17 19" aria-hidden="true"><path d="M2 1.6v15.8a.8.8 0 0 0 1.22.68l12.6-7.9a.8.8 0 0 0 0-1.36L3.22.92A.8.8 0 0 0 2 1.6Z" fill="currentColor"/></svg>';
+  const ICON_STOP = '<svg width="13" height="13" viewBox="0 0 15 15" aria-hidden="true"><rect width="15" height="15" rx="3.4" fill="currentColor"/></svg>';
+
+  const playBtn = document.getElementById("play");
+  let playing = false, last = 0;
+
+  function frame(now) {
+    if (!playing) return;
+    if (last) {
+      pos += (now - last) / 1000 / SONG;
+      if (pos >= 1) pos -= 1;
+      paint();
+      levels(true);
+    }
+    last = now;
+    requestAnimationFrame(frame);
+  }
+
+  playBtn.addEventListener("click", () => {
+    playing = !playing;
+    playBtn.innerHTML = playing ? ICON_STOP : ICON_PLAY;
+    playBtn.setAttribute("aria-label", playing ? "Stop" : "Play");
+    last = 0;
+    if (playing) requestAnimationFrame(frame); else levels(false);
+  });
+</script>
