@@ -4,3 +4,5 @@ dist
 out
 .claude/settings.local.json
 .claude/worktrees/
+build/
+compile_commands.json
