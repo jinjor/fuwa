@@ -36,7 +36,7 @@ std::int16_t toPcm16(float sample) {
 bool writeWav(const std::filesystem::path& path, const std::vector<std::vector<float>>& channels,
               double sampleRate, std::string& error) {
   if (channels.empty()) {
-    error = "チャンネルがない";
+    error = "no channels";
     return false;
   }
 
@@ -76,12 +76,12 @@ bool writeWav(const std::filesystem::path& path, const std::vector<std::vector<f
 
   std::ofstream file(path, std::ios::binary);
   if (!file) {
-    error = "書き込めない: " + path.string();
+    error = "cannot open for writing: " + path.string();
     return false;
   }
   file.write(reinterpret_cast<const char*>(out.data()), static_cast<std::streamsize>(out.size()));
   if (!file) {
-    error = "書き込みに失敗: " + path.string();
+    error = "write failed: " + path.string();
     return false;
   }
   return true;

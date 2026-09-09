@@ -137,6 +137,40 @@
   .term .t { color: #8FC4E8; }
   .term .d { color: var(--term-dim); }
   .term .box { color: #4B4460; }
+
+  /* 添付。埋め込んだ TUI の入力欄には手を入れられないので、端末の外に置き、
+     選んだものはパスとしてプロンプトに差し込む。 */
+  .capture {
+    flex: none;
+    border-top: 1px solid #322C44;
+    padding: 10px 14px 12px;
+  }
+  .cap-row { display: flex; gap: 7px; }
+  .cap {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 27px;
+    padding: 0 11px;
+    border-radius: 999px;
+    border: 1px solid #3B3450;
+    background: transparent;
+    color: var(--term-ink);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    cursor: pointer;
+  }
+  .cap:hover { border-color: #574D74; }
+  .cap .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #6A6284;
+  }
+  .cap.on { border-color: #C9636B; color: #F0A9AE; }
+  .cap.on .dot { background: #E0646E; animation: blip 1.1s steps(2, end) infinite; }
+  @keyframes blip { 50% { opacity: .25; } }
+
   .term .cur {
     display: inline-block;
     width: 7px;
@@ -399,7 +433,7 @@
 <div class="page">
   <header class="page-head">
     <h1>fuwa — ゆるふわ案</h1>
-    <p>DAW の部品を並べるのをやめた案。曲はトラックの表ではなく、鳴っている楽器の集まりとして見せる。時間軸は曲全体に一本だけ。会話は claude の TUI をそのまま埋める。</p>
+    <p>DAW の部品を並べるのをやめた案。曲はトラックの表ではなく、鳴っている楽器の集まりとして見せる。時間軸は曲全体に一本だけ。会話は claude の TUI をそのまま埋める。弾いたものや口ずさんだものは添付として渡す。</p>
   </header>
 
   <div class="win">
@@ -427,11 +461,24 @@
 <span class="a">⏺</span> <span class="t">fuwa</span>(write lead 17-28)
   <span class="d">⎿  12 小節を書き込みました</span>
 
-<span class="box">╭──────────────────────────────────────────╮</span>
-<span class="box">│</span> &gt; drums の 17-20、手数を減らしてキック    <span class="box">│</span>
-<span class="box">│</span>   だけ残して<span class="cur"></span>                            <span class="box">│</span>
-<span class="box">╰──────────────────────────────────────────╯</span>
+<span class="u">&gt; 適当に口ずさんだやつ、これをドラムで
+  ~/fuwa/takes/hum-1.wav</span>
+
+<span class="a">⏺</span> 8 小節ぶん、キックとスネアの位置を拾いました。
+  裏拍が走っていたので均してあります。
+
+<span class="a">⏺</span> <span class="t">fuwa</span>(write drums 1-8)
+  <span class="d">⎿  8 小節を書き込みました</span>
+
+<span class="box" id="prompt"></span>
   <span class="d">⏎ send   ⇧⏎ newline</span></pre>
+
+      <div class="capture">
+        <div class="cap-row">
+          <button class="cap" data-cap="midi"><span class="dot"></span>Record MIDI</button>
+          <button class="cap" data-cap="audio"><span class="dot"></span>Record audio</button>
+        </div>
+      </div>
     </div>
 
     <div class="stage">
@@ -481,6 +528,14 @@
     <div class="note-card">
       <h2>数字を消した</h2>
       <p>dB もサンプルレートもレイテンシも、見たところで何もしない。残したのは経過時間だけ。つまみは位置で覚える。</p>
+    </div>
+    <div class="note-card">
+      <h2>弾いたものは「添付」で渡す</h2>
+      <p>トラックに録ってからクオンタイズで整える、という順序をやめる。録ったものはファイルとして残し、そのパスをプロンプトに差し込むだけ。グリッドに合わせるのは AI の仕事で、演奏が下手でも読み取ってもらう。</p>
+    </div>
+    <div class="note-card">
+      <h2>添付の口は端末の外</h2>
+      <p>埋め込むのは claude / codex の素の端末なので、その入力欄の中にチップを描くことはできない。ボタンは端末の下に置く。止めた時点でファイルが作られ、そのパスが入力欄に入る。テイクを溜めて選ばせる画面は作らない。</p>
     </div>
     <div class="note-card">
       <h2>会話は素の TUI</h2>
@@ -667,4 +722,87 @@
     last = 0;
     if (playing) requestAnimationFrame(frame); else levels(false);
   });
+
+  /* ---- プロンプトと添付 ----------------------------------------------
+     埋め込むのは claude / codex の素の端末なので、入力欄の中に添付チップを
+     描くことはできない。録ったものはファイルとして置き、そのパスをプロンプトに
+     差し込む。エージェント側はパスを受け取って読むだけで済む。 */
+  const BOX_W = 42;
+  const promptEl = document.getElementById("prompt");
+
+  const WIDE = /[\u1100-\u115F\u2E80-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE6F\uFF00-\uFF60\uFFE0-\uFFE6]/;
+  const width = (s) => [...s].reduce((n, c) => n + (WIDE.test(c) ? 2 : 1), 0);
+
+  // 日本語はどこで折ってもよいが、パスのような ASCII の連なりは切らない。
+  function wrap(text, limit) {
+    const units = text.match(/[\x21-\x7E]+|\s|[\s\S]/g) || [];
+    const lines = [];
+    let line = "";
+    for (const unit of units) {
+      if (line !== "" && width(line) + width(unit) > limit) {
+        lines.push(line);
+        line = unit === " " ? "" : unit;
+        continue;
+      }
+      line += unit;
+    }
+    lines.push(line);
+    return lines;
+  }
+
+  const esc = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+
+  let promptText = "いま弾いたやつをオシャレにして ~/fuwa/takes/take-2.mid";
+
+  function paintPrompt() {
+    const body = wrap("> " + promptText, BOX_W - 3);
+    const bar = "─".repeat(BOX_W);
+    const rows = body.map((line, i) => {
+      const text = i === 0 ? line : "  " + line;
+      const last = i === body.length - 1;
+      const pad = " ".repeat(Math.max(0, BOX_W - 1 - width(text)));
+      const cur = last ? '<span class="cur"></span>' : "";
+      return "│ " + esc(text) + cur + pad + "│";
+    });
+    promptEl.innerHTML = "╭" + bar + "╮\n" + rows.join("\n") + "\n╰" + bar + "╯";
+  }
+
+  /* 録音中は経過を出す。止めた時点でファイルが作られ、パスが入力欄に入る。 */
+  let recording = null;
+  let taken = 1;
+
+  function label(button, text) {
+    button.textContent = "";
+    button.append(Object.assign(document.createElement("span"), { className: "dot" }), text);
+  }
+  document.querySelectorAll(".cap").forEach((button) => {
+    button.addEventListener("click", () => {
+      const kind = button.dataset.cap;
+      if (recording && recording.kind === kind) {
+        clearInterval(recording.timer);
+        button.classList.remove("on");
+        label(button, kind === "midi" ? "Record MIDI" : "Record audio");
+        // 止めた時点でファイルになり、そのパスがプロンプトに入る。
+        const name = kind === "midi" ? `take-${++taken}.mid` : `hum-${++taken}.wav`;
+        promptText = (promptText.trimEnd() + " ~/fuwa/takes/" + name).trimStart();
+        paintPrompt();
+        recording = null;
+        return;
+      }
+      if (recording) return;
+      button.classList.add("on");
+      recording = { kind, seconds: 0, timer: null };
+      const tick = () => {
+        recording.seconds += 1;
+        label(button, `Stop  0:${String(recording.seconds).padStart(2, "0")}`);
+      };
+      tick();
+      recording.timer = setInterval(tick, 1000);
+    });
+  });
+
+  paintPrompt();
+
+  const scroller = document.querySelector(".term pre");
+  scroller.scrollTop = scroller.scrollHeight;
 </script>

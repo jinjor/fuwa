@@ -79,7 +79,7 @@ struct UnitHandle {
 
 bool play(const std::vector<std::vector<float>>& channels, double sampleRate, std::string& error) {
   if (channels.empty() || channels.front().empty()) {
-    error = "鳴らすものがない";
+    error = "nothing to play";
     return false;
   }
 
@@ -90,7 +90,7 @@ bool play(const std::vector<std::vector<float>>& channels, double sampleRate, st
 
   AudioComponent component = AudioComponentFindNext(nullptr, &description);
   if (component == nullptr) {
-    error = "既定の出力デバイスが見つからない";
+    error = "no default output device";
     return false;
   }
 
@@ -109,7 +109,7 @@ bool play(const std::vector<std::vector<float>>& channels, double sampleRate, st
 
   UnitHandle handle;
   if (AudioComponentInstanceNew(component, &handle.unit) != noErr) {
-    error = "出力ユニットを作れない";
+    error = "cannot create the output unit";
     return false;
   }
 
@@ -130,7 +130,7 @@ bool play(const std::vector<std::vector<float>>& channels, double sampleRate, st
 
   if (AudioUnitSetProperty(handle.unit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0,
                            &format, sizeof(format)) != noErr) {
-    error = "出力フォーマットを設定できない";
+    error = "cannot set the output format";
     return false;
   }
 
@@ -139,18 +139,18 @@ bool play(const std::vector<std::vector<float>>& channels, double sampleRate, st
   callback.inputProcRefCon = &playback;
   if (AudioUnitSetProperty(handle.unit, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input,
                            0, &callback, sizeof(callback)) != noErr) {
-    error = "コールバックを設定できない";
+    error = "cannot set the render callback";
     return false;
   }
 
   if (AudioUnitInitialize(handle.unit) != noErr) {
-    error = "出力ユニットを初期化できない";
+    error = "cannot initialize the output unit";
     return false;
   }
   handle.initialized = true;
 
   if (AudioOutputUnitStart(handle.unit) != noErr) {
-    error = "再生を開始できない";
+    error = "cannot start playback";
     return false;
   }
   handle.running = true;

@@ -85,7 +85,7 @@ int listClasses(const std::filesystem::path& pluginPath) {
   std::string error;
   const auto classes = fuwa::plugin::vst3::listClasses(pluginPath, error);
   if (classes.empty()) {
-    std::fprintf(stderr, "クラスを読めない: %s\n", error.c_str());
+    std::fprintf(stderr, "cannot read the classes: %s\n", error.c_str());
     return 1;
   }
   for (const auto& info : classes) {
@@ -99,13 +99,13 @@ int render(const Command& command) {
   std::string error;
   auto instrument = fuwa::plugin::vst3::load(command.pluginPath, command.className, error);
   if (!instrument) {
-    std::fprintf(stderr, "読み込めない: %s\n", error.c_str());
+    std::fprintf(stderr, "cannot load: %s\n", error.c_str());
     return 1;
   }
 
   const fuwa::engine::RenderSettings settings;
   if (!instrument->prepare(settings.sampleRate, settings.blockSize, error)) {
-    std::fprintf(stderr, "準備できない: %s\n", error.c_str());
+    std::fprintf(stderr, "cannot prepare: %s\n", error.c_str());
     return 1;
   }
 
@@ -120,20 +120,20 @@ int render(const Command& command) {
   std::printf("rms      %.6f\n", level.rms);
 
   if (!fuwa::audio::writeWav(command.outPath, sink.channels(), settings.sampleRate, error)) {
-    std::fprintf(stderr, "書き出せない: %s\n", error.c_str());
+    std::fprintf(stderr, "cannot write: %s\n", error.c_str());
     return 1;
   }
   std::printf("wrote    %s\n", command.outPath.string().c_str());
 
   if (level.peak <= 0.0f) {
-    std::fprintf(stderr, "無音だった\n");
+    std::fprintf(stderr, "the output was silent\n");
     return 1;
   }
 
   if (command.playAfter) {
     std::printf("playing...\n");
     if (!fuwa::audio::play(sink.channels(), settings.sampleRate, error)) {
-      std::fprintf(stderr, "再生できない: %s\n", error.c_str());
+      std::fprintf(stderr, "cannot play: %s\n", error.c_str());
       return 1;
     }
   }

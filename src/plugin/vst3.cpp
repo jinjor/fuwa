@@ -179,25 +179,25 @@ class Vst3Instrument final : public Instrument {
       });
     }
     if (it == classes.end()) {
-      error = className.empty() ? "インストゥルメントが見つからない: " + path.string()
-                                : "クラスが見つからない: " + std::string(className);
+      error = className.empty() ? "no instrument found: " + path.string()
+                                : "class not found: " + std::string(className);
       return false;
     }
     name_ = it->name();
 
     component_ = factory.createInstance<Vst::IComponent>(it->ID());
     if (!component_) {
-      error = "コンポーネントを作れない: " + name_;
+      error = "cannot create the component: " + name_;
       return false;
     }
     if (component_->initialize(&hostContext()) != kResultOk) {
-      error = "コンポーネントを初期化できない: " + name_;
+      error = "cannot initialize the component: " + name_;
       return false;
     }
 
     processor_ = FUnknownPtr<Vst::IAudioProcessor>(component_);
     if (!processor_) {
-      error = "IAudioProcessor を取得できない: " + name_;
+      error = "cannot obtain IAudioProcessor: " + name_;
       return false;
     }
 
@@ -220,7 +220,7 @@ class Vst3Instrument final : public Instrument {
     setup.sampleRate = sampleRate;
 
     if (processor_->setupProcessing(setup) != kResultOk) {
-      error = "setupProcessing に失敗: " + name_;
+      error = "setupProcessing failed: " + name_;
       return false;
     }
 
@@ -230,19 +230,19 @@ class Vst3Instrument final : public Instrument {
     activateAll(Vst::kEvent, Vst::kInput);
 
     if (component_->setActive(true) != kResultOk) {
-      error = "setActive に失敗: " + name_;
+      error = "setActive failed: " + name_;
       return false;
     }
     processor_->setProcessing(true);
 
     if (!data_.prepare(*component_, maxBlockSize, Vst::kSample32)) {
-      error = "バッファを用意できない: " + name_;
+      error = "cannot prepare the buffers: " + name_;
       return false;
     }
 
     channelCount_ = data_.numOutputs > 0 ? data_.outputs[0].numChannels : 0;
     if (channelCount_ <= 0) {
-      error = "出力チャンネルがない: " + name_;
+      error = "no output channels: " + name_;
       return false;
     }
 
@@ -337,7 +337,7 @@ class Vst3Instrument final : public Instrument {
       // 制御側を持たない、あるいは作れないプラグインもある。
       // 音を出すだけなら困らないので、そのまま進む。
       if (controller_ && controller_->initialize(&hostContext()) != kResultOk) {
-        error = "制御側を初期化できない: " + name_;
+        error = "cannot initialize the controller: " + name_;
         return false;
       }
       if (!controller_) {
@@ -389,7 +389,7 @@ class Vst3Instrument final : public Instrument {
     if (processor_->setBusArrangements(inputs.data(), static_cast<int32>(inputs.size()),
                                        outputs.data(),
                                        static_cast<int32>(outputs.size())) != kResultOk) {
-      error = "バス配置を受け付けない: " + name_;
+      error = "bus arrangement rejected: " + name_;
       return false;
     }
     return true;
