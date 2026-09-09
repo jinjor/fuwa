@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include "audio/device.h"
 #include "audio/sink.h"
 #include "audio/wav.h"
 #include "engine/player.h"
@@ -66,7 +67,7 @@ int main(int argc, char** argv) {
   if (argc < 2) {
     std::fprintf(stderr,
                  "usage:\n"
-                 "  %s <plugin.vst3> [out.wav] [class-name]\n"
+                 "  %s [--play] <plugin.vst3> [out.wav] [class-name]\n"
                  "  %s --list <plugin.vst3>\n",
                  argv[0], argv[0]);
     return 2;
@@ -80,9 +81,20 @@ int main(int argc, char** argv) {
     return listClasses(argv[2]);
   }
 
-  const std::filesystem::path pluginPath = argv[1];
-  const std::filesystem::path outPath = argc >= 3 ? argv[2] : "out.wav";
-  const std::string className = argc >= 4 ? argv[3] : "";
+  int arg = 1;
+  bool playAfter = false;
+  if (std::string(argv[arg]) == "--play") {
+    playAfter = true;
+    ++arg;
+  }
+  if (arg >= argc) {
+    std::fprintf(stderr, "プラグインのパスが要る\n");
+    return 2;
+  }
+
+  const std::filesystem::path pluginPath = argv[arg];
+  const std::filesystem::path outPath = arg + 1 < argc ? argv[arg + 1] : "out.wav";
+  const std::string className = arg + 2 < argc ? argv[arg + 2] : "";
 
   std::string error;
   auto instrument = fuwa::plugin::vst3::load(pluginPath, className, error);
@@ -116,6 +128,14 @@ int main(int argc, char** argv) {
   if (level.peak <= 0.0f) {
     std::fprintf(stderr, "無音だった\n");
     return 1;
+  }
+
+  if (playAfter) {
+    std::printf("playing...\n");
+    if (!fuwa::audio::play(sink.channels(), settings.sampleRate, error)) {
+      std::fprintf(stderr, "再生できない: %s\n", error.c_str());
+      return 1;
+    }
   }
   return 0;
 }

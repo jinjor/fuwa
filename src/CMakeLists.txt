@@ -2,9 +2,11 @@
 add_library(fuwa_model INTERFACE)
 target_include_directories(fuwa_model INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 
-add_library(fuwa_audio STATIC audio/sink.cpp audio/wav.cpp)
+add_library(fuwa_audio STATIC audio/sink.cpp audio/wav.cpp audio/device.cpp)
 target_include_directories(fuwa_audio PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(fuwa_audio PRIVATE fuwa_options)
+target_link_libraries(fuwa_audio
+  PUBLIC "-framework AudioToolbox" "-framework CoreAudio" "-framework CoreFoundation"
+  PRIVATE fuwa_options)
 
 add_library(fuwa_plugin STATIC plugin/vst3_instrument.cpp)
 target_include_directories(fuwa_plugin PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
