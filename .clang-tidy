@@ -1,0 +1,18 @@
+# 有効にするのは「バグを見つける」系に絞る。書き方の好みを言ってくるチェックは
+# 入れない（整形は clang-format の仕事で、二重に指図されると鬱陶しいため）。
+Checks: >
+  -*,
+  bugprone-*,
+  clang-analyzer-*,
+  performance-*,
+  misc-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-exception-escape,
+  -misc-const-correctness,
+  -misc-include-cleaner,
+  -misc-non-private-member-variables-in-classes,
+  -misc-use-anonymous-namespace
+
+# 自分のヘッダだけを診る。vendor 以下は直せないので黙らせる。
+HeaderFilterRegex: '.*/fuwa/(src|test)/.*\.h$'
+WarningsAsErrors: '*'

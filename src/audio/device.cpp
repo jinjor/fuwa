@@ -29,8 +29,8 @@ OSStatus renderCallback(void* refCon, AudioUnitRenderActionFlags* flags, const A
 
   for (UInt32 bus = 0; bus < data->mNumberBuffers; ++bus) {
     auto* out = static_cast<float*>(data->mBuffers[bus].mData);
-    const auto& source = (*playback->channels)[std::min<std::size_t>(
-        bus, playback->channels->size() - 1)];
+    const auto& source =
+        (*playback->channels)[std::min<std::size_t>(bus, playback->channels->size() - 1)];
 
     for (std::int64_t i = 0; i < toCopy; ++i) {
       out[i] = source[static_cast<std::size_t>(start + i)];
@@ -100,8 +100,8 @@ bool play(const std::vector<std::vector<float>>& channels, double sampleRate, st
   AudioStreamBasicDescription format{};
   format.mSampleRate = sampleRate;
   format.mFormatID = kAudioFormatLinearPCM;
-  format.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked |
-                        kAudioFormatFlagIsNonInterleaved;
+  format.mFormatFlags =
+      kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked | kAudioFormatFlagIsNonInterleaved;
   format.mFramesPerPacket = 1;
   format.mChannelsPerFrame = channelCount;
   format.mBitsPerChannel = 32;
@@ -121,8 +121,8 @@ bool play(const std::vector<std::vector<float>>& channels, double sampleRate, st
   AURenderCallbackStruct callback{};
   callback.inputProc = renderCallback;
   callback.inputProcRefCon = &playback;
-  if (AudioUnitSetProperty(handle.unit, kAudioUnitProperty_SetRenderCallback,
-                           kAudioUnitScope_Input, 0, &callback, sizeof(callback)) != noErr) {
+  if (AudioUnitSetProperty(handle.unit, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input,
+                           0, &callback, sizeof(callback)) != noErr) {
     error = "コールバックを設定できない";
     return false;
   }

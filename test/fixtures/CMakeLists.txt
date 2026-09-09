@@ -40,6 +40,9 @@ add_library(hostchecker MODULE
   hostchecker_factory.cpp)
 
 target_link_libraries(hostchecker PRIVATE vst3_plugin)
+# vstgui4 を見せているのは、hostcheckerprocessor.cpp が vstguieditor.h を
+# インクルードしているため。ヘッダを読ませるだけで、VSTGUI のソースは
+# コンパイルもリンクもしない。fuwa 本体は vstgui4 に一切触れない。
 target_include_directories(hostchecker PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${HC}

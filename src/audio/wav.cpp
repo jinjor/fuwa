@@ -53,8 +53,8 @@ bool writeWav(const std::filesystem::path& path, const std::vector<std::vector<f
   putTag(out, "WAVE");
 
   putTag(out, "fmt ");
-  putU32(out, 16);                                          // PCM のチャンクサイズ
-  putU16(out, 1);                                           // PCM
+  putU32(out, 16);  // PCM のチャンクサイズ
+  putU16(out, 1);   // PCM
   putU16(out, channelCount);
   putU32(out, static_cast<std::uint32_t>(sampleRate));
   putU32(out, static_cast<std::uint32_t>(sampleRate) * channelCount * bytesPerSample);

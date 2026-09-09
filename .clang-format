@@ -2,3 +2,6 @@ BasedOnStyle: Google
 ColumnLimit: 100
 DerivePointerAlignment: false
 PointerAlignment: Left
+# 並べ替えは意味を変えうる（include の順序に依存するヘッダが実在する）。
+# 整形は空白と改行だけに留める。
+SortIncludes: Never

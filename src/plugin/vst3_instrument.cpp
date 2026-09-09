@@ -1,5 +1,3 @@
-#include "plugin/vst3.h"
-
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -7,6 +5,7 @@
 #include <utility>
 #include <vector>
 
+#include "plugin/vst3.h"
 #include "pluginterfaces/base/ipluginbase.h"
 #include "pluginterfaces/vst/ivstaudioprocessor.h"
 #include "pluginterfaces/vst/ivstcomponent.h"

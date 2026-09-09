@@ -13,7 +13,8 @@
 - [x] オフラインレンダリングによる自動テスト（音が鳴っていることを耳以外で確かめる）
 - [x] hostchecker による規格適合の確認（Error 0、Warning 0）
 - [x] 実在のプラグインでの動作確認
-- [ ] リント（clang-format / clang-tidy が未導入。入れるなら要相談）
+- [x] リント（clang-format / clang-tidy）
+- [x] 開発環境の再現（./setup.sh）
 
 ## MVP: AI がノートを打つと鳴る
 

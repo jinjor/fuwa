@@ -3,6 +3,8 @@
 // SDK 同梱のファクトリは制御側も登録するが、制御側は VSTGUI に依存していて
 // 画面を持たない fuwa では使えない。検査そのものは処理側が行い、結果は
 // メッセージで送られてくるので、処理側だけを建てれば足りる。
+//
+// cids.h は FUID を宣言なしで使うので、pluginfactory.h を先に読ませる。
 #include "public.sdk/source/main/pluginfactory.h"
 
 #include "cids.h"

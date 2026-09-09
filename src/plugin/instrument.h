@@ -12,8 +12,8 @@ namespace fuwa::plugin {
 // 1 ブロックの中の相対位置で表したノートの出来事。
 struct NoteEvent {
   std::int32_t sampleOffset;
-  std::int16_t pitch;    // 0-127
-  float velocity;        // 0.0-1.0
+  std::int16_t pitch;  // 0-127
+  float velocity;      // 0.0-1.0
   bool on;
 };
 

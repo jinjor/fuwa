@@ -8,8 +8,7 @@
 #include "check.h"
 
 int main() {
-  const std::filesystem::path path =
-      std::filesystem::temp_directory_path() / "fuwa_wav_test.wav";
+  const std::filesystem::path path = std::filesystem::temp_directory_path() / "fuwa_wav_test.wav";
   std::filesystem::remove(path);
 
   // 2ch × 100 フレーム。左を +1.0、右を -1.0 で埋める。
@@ -25,8 +24,7 @@ int main() {
 
   std::ifstream file(path, std::ios::binary);
   CHECK(file);
-  std::vector<char> bytes((std::istreambuf_iterator<char>(file)),
-                          std::istreambuf_iterator<char>());
+  std::vector<char> bytes((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
 
   // ヘッダ 44 バイト + 100 フレーム × 2ch × 2byte
   CHECK(bytes.size() == 44 + 100 * 2 * 2);
@@ -35,10 +33,10 @@ int main() {
   CHECK(std::string(bytes.begin() + 36, bytes.begin() + 40) == "data");
 
   // 最初のフレーム: 左 +32767、右 -32767
-  const auto left = static_cast<std::int16_t>(
-      (static_cast<unsigned char>(bytes[45]) << 8) | static_cast<unsigned char>(bytes[44]));
-  const auto right = static_cast<std::int16_t>(
-      (static_cast<unsigned char>(bytes[47]) << 8) | static_cast<unsigned char>(bytes[46]));
+  const auto left = static_cast<std::int16_t>((static_cast<unsigned char>(bytes[45]) << 8) |
+                                              static_cast<unsigned char>(bytes[44]));
+  const auto right = static_cast<std::int16_t>((static_cast<unsigned char>(bytes[47]) << 8) |
+                                               static_cast<unsigned char>(bytes[46]));
   CHECK(left == 32767);
   CHECK(right == -32767);
 

@@ -5,4 +5,5 @@ out
 .claude/settings.local.json
 .claude/worktrees/
 build/
+.tools/
 compile_commands.json
