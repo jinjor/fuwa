@@ -8,7 +8,7 @@ target_link_libraries(fuwa_audio PRIVATE fuwa_options)
 
 add_library(fuwa_plugin STATIC plugin/vst3_instrument.cpp)
 target_include_directories(fuwa_plugin PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(fuwa_plugin PUBLIC vst3sdk PRIVATE fuwa_options)
+target_link_libraries(fuwa_plugin PUBLIC vst3_hosting PRIVATE fuwa_options)
 
 add_library(fuwa_engine STATIC engine/player.cpp)
 target_include_directories(fuwa_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
