@@ -5,6 +5,7 @@
 
 #include "audio/sink.h"
 #include "model/note.h"
+#include "model/tempo.h"
 #include "plugin/instrument.h"
 
 // モデルの音をプラグインに通して出口へ流す。
@@ -12,7 +13,7 @@ namespace fuwa::engine {
 
 struct Schedule {
   std::vector<model::Note> notes;
-  double bpm = 120.0;
+  model::Tempo tempo;
 };
 
 struct RenderSettings {

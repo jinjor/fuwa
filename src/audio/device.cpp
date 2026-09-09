@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
-#include <cstring>
+#include <cstdint>
 #include <thread>
 
 namespace fuwa::audio {
@@ -13,13 +13,18 @@ namespace {
 
 // リアルタイムコールバックが触る唯一の状態。
 // 音は再生前に用意し終えているので、コールバックは書き写すだけで済む。
+//
+// std::vector ではなく生のポインタで持つ。リアルタイム側に渡るものは
+// あらかじめ確保しておく決まりで、コンテナを持ち込むとその決まりが緩む。
 struct Playback {
-  const std::vector<std::vector<float>>* channels = nullptr;
+  const float* const* channels = nullptr;  // channelCount 本の配列
+  std::int32_t channelCount = 0;
   std::int64_t frameCount = 0;
   std::atomic<std::int64_t> position{0};
   std::atomic<bool> finished{false};
 };
 
+// realtime-begin
 OSStatus renderCallback(void* refCon, AudioUnitRenderActionFlags* flags, const AudioTimeStamp*,
                         UInt32, UInt32 frameCount, AudioBufferList* data) {
   auto* playback = static_cast<Playback*>(refCon);
@@ -29,11 +34,12 @@ OSStatus renderCallback(void* refCon, AudioUnitRenderActionFlags* flags, const A
 
   for (UInt32 bus = 0; bus < data->mNumberBuffers; ++bus) {
     auto* out = static_cast<float*>(data->mBuffers[bus].mData);
-    const auto& source =
-        (*playback->channels)[std::min<std::size_t>(bus, playback->channels->size() - 1)];
+    // デバイスが要求する本数がこちらより多ければ、最後のチャンネルを繰り返す。
+    const auto last = static_cast<UInt32>(playback->channelCount - 1);
+    const float* source = playback->channels[std::min<UInt32>(bus, last)];
 
     for (std::int64_t i = 0; i < toCopy; ++i) {
-      out[i] = source[static_cast<std::size_t>(start + i)];
+      out[i] = source[start + i];
     }
     for (std::int64_t i = toCopy; i < frameCount; ++i) {
       out[i] = 0.0f;
@@ -49,6 +55,7 @@ OSStatus renderCallback(void* refCon, AudioUnitRenderActionFlags* flags, const A
   }
   return noErr;
 }
+// realtime-end
 
 struct UnitHandle {
   AudioUnit unit = nullptr;
@@ -87,6 +94,19 @@ bool play(const std::vector<std::vector<float>>& channels, double sampleRate, st
     return false;
   }
 
+  // 再生に使うものは UnitHandle より先に作る。ローカルの破棄は宣言の逆順なので、
+  // 逆にするとユニットを止める前にこれらが消え、コールバックが死んだものを読む。
+  std::vector<const float*> pointers;
+  pointers.reserve(channels.size());
+  for (const std::vector<float>& channel : channels) {
+    pointers.push_back(channel.data());
+  }
+
+  Playback playback;
+  playback.channels = pointers.data();
+  playback.channelCount = static_cast<std::int32_t>(channels.size());
+  playback.frameCount = static_cast<std::int64_t>(channels.front().size());
+
   UnitHandle handle;
   if (AudioComponentInstanceNew(component, &handle.unit) != noErr) {
     error = "出力ユニットを作れない";
@@ -114,10 +134,6 @@ bool play(const std::vector<std::vector<float>>& channels, double sampleRate, st
     return false;
   }
 
-  Playback playback;
-  playback.channels = &channels;
-  playback.frameCount = static_cast<std::int64_t>(channels.front().size());
-
   AURenderCallbackStruct callback{};
   callback.inputProc = renderCallback;
   callback.inputProcRefCon = &playback;
@@ -142,7 +158,9 @@ bool play(const std::vector<std::vector<float>>& channels, double sampleRate, st
   while (!playback.finished.load(std::memory_order_acquire)) {
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
-  // 最後のバッファがデバイスから出きるのを待つ
+  // 最後のバッファがデバイスから出きるのを待つ。120ms に根拠はない。
+  // 本来はデバイスのレイテンシを問い合わせて決めるべきだが、Step 0 では
+  // 鳴らして確かめられれば足りるので余裕を見た定数で済ませている。
   std::this_thread::sleep_for(std::chrono::milliseconds(120));
   return true;
 }

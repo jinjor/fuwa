@@ -51,7 +51,7 @@ int main(int argc, char** argv) {
   CHECK(instrument->prepare(settings.sampleRate, settings.blockSize, error));
 
   fuwa::engine::Schedule schedule;
-  schedule.bpm = 120.0;
+  schedule.tempo = fuwa::model::Tempo(120.0);
   schedule.notes.push_back({0.0, 0.5, 60, 0.8f});
   schedule.notes.push_back({0.5, 0.5, 64, 0.8f});
 

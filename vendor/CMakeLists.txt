@@ -42,7 +42,6 @@ set_source_files_properties(${SDK}/public.sdk/source/common/threadchecker_mac.mm
   PROPERTIES COMPILE_FLAGS "-fobjc-arc")
 
 add_library(vst3_hosting STATIC
-  ${SDK}/public.sdk/source/vst/hosting/connectionproxy.cpp
   ${SDK}/public.sdk/source/vst/hosting/eventlist.cpp
   ${SDK}/public.sdk/source/vst/hosting/hostclasses.cpp
   ${SDK}/public.sdk/source/vst/hosting/module.cpp

@@ -49,7 +49,7 @@ int main() {
   CountingInstrument instrument;
 
   fuwa::engine::Schedule schedule;
-  schedule.bpm = 120.0;  // 1 拍 = 0.5 秒
+  schedule.tempo = fuwa::model::Tempo(120.0);  // 1 拍 = 0.5 秒
   schedule.notes.push_back({0.0, 1.0, 60, 1.0f});
   schedule.notes.push_back({1.0, 1.0, 64, 1.0f});
 

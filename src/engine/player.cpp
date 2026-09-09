@@ -11,8 +11,9 @@ struct TimedEvent {
   plugin::NoteEvent event;
 };
 
-std::int64_t beatsToFrames(double beats, double bpm, double sampleRate) {
-  return static_cast<std::int64_t>(std::llround(beats * 60.0 / bpm * sampleRate));
+// 拍から秒への変換はモデルが答える。ここが知っているのはサンプルレートだけ。
+std::int64_t beatsToFrames(double beats, const model::Tempo& tempo, double sampleRate) {
+  return static_cast<std::int64_t>(std::llround(tempo.secondsAt(beats) * sampleRate));
 }
 
 // ノート一覧を、フレーム位置の昇順に並んだ note on/off の列にする。
@@ -21,9 +22,9 @@ std::vector<TimedEvent> flatten(const Schedule& schedule, double sampleRate) {
   events.reserve(schedule.notes.size() * 2);
 
   for (const model::Note& note : schedule.notes) {
-    const std::int64_t start = beatsToFrames(note.startBeat, schedule.bpm, sampleRate);
+    const std::int64_t start = beatsToFrames(note.startBeat, schedule.tempo, sampleRate);
     const std::int64_t end =
-        beatsToFrames(note.startBeat + note.lengthBeats, schedule.bpm, sampleRate);
+        beatsToFrames(note.startBeat + note.lengthBeats, schedule.tempo, sampleRate);
     events.push_back({start, {0, note.pitch, note.velocity, true}});
     events.push_back({std::max(end, start + 1), {0, note.pitch, 0.0f, false}});
   }

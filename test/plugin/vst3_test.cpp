@@ -56,7 +56,7 @@ int main(int argc, char** argv) {
   CHECK(instruments >= 4);
 
   fuwa::engine::Schedule schedule;
-  schedule.bpm = 120.0;
+  schedule.tempo = fuwa::model::Tempo(120.0);
   schedule.notes.push_back({0.0, 1.0, 60, 0.9f});
 
   // ノートを与えれば鳴る

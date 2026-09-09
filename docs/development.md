@@ -50,6 +50,18 @@ cmake --build build --target tidy
 clang-tidy は Apple の libc++ を見つけられない。Command Line Tools がヘッダを SDK の中に
 置いているのに探しに行かないため。`-isystem` で渡してある。
 
+## 規約の見張り
+
+ソースを読んで規約違反を探すものが 2 つあり、どちらも `ctest` に入っている。
+
+- `test/layers.sh` — 層の依存の向き。層を増やしたらこれも直す
+- `test/realtime.sh` — `// realtime-begin` から `// realtime-end` の範囲に確保やロックが
+  紛れていないか。grep なので呼び出した先までは見ない。本物の検査は RealtimeSanitizer
+  だが、あれはコンパイラが Clang 20 以降でないと使えない
+
+VST3 SDK との境界は CMake が強制する。SDK にリンクしているのは `fuwa_plugin` だけで、
+しかも `PRIVATE` なので、他の層から SDK のヘッダを読むとコンパイルが通らない。
+
 ## サニタイザ
 
 開発ビルドでは ASan と UBSan を常時有効にし、常に緑を保つ。

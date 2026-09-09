@@ -1,5 +1,9 @@
 add_subdirectory(fixtures)
 
+# 層の依存の向きは実行して確かめるものではないので、ソースを読んで検査する。
+add_test(NAME test_layers COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/layers.sh ${CMAKE_SOURCE_DIR})
+add_test(NAME test_realtime COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/realtime.sh ${CMAKE_SOURCE_DIR})
+
 # 依存を増やしたくないので、テストフレームワークは使わず assert と終了コードで済ませる。
 function(fuwa_test name)
   add_executable(${name} ${ARGN})
@@ -22,8 +26,12 @@ add_dependencies(test_vst3 mda-vst3)
 add_test(NAME test_vst3 COMMAND test_vst3 $<TARGET_BUNDLE_DIR:mda-vst3>)
 
 # hostchecker はホストの振る舞いを検査して結果をメッセージで返す。
+# このテストだけは SDK のヘッダ（logevents.h）を直接読むので、自分で SDK を要求する。
+# 要るのはヘッダだけなのでリンクはせず、include パスだけをもらう。
 add_executable(test_hostcheck plugin/hostcheck_test.cpp)
 target_link_libraries(test_hostcheck PRIVATE fuwa_engine fuwa_options)
+target_include_directories(test_hostcheck SYSTEM PRIVATE
+  $<TARGET_PROPERTY:vst3_base,INTERFACE_INCLUDE_DIRECTORIES>)
 target_include_directories(test_hostcheck PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_SOURCE_DIR}/vendor/vst3sdk/public.sdk/samples/vst/hostchecker/source)
