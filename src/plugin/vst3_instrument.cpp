@@ -332,33 +332,40 @@ class Vst3Instrument final : public Instrument {
 
     if (separate) {
       TUID controllerId;
-      if (component_->getControllerClassId(controllerId) != kResultOk) {
-        // 制御側を持たないプラグインもある。音を出すだけなら困らない。
-        debugLog("制御側のクラス ID がない: %s", name_.c_str());
-        return true;
+      if (component_->getControllerClassId(controllerId) == kResultOk) {
+        controller_ = factory.createInstance<Vst::IEditController>(VST3::UID(controllerId));
       }
-      controller_ = factory.createInstance<Vst::IEditController>(VST3::UID(controllerId));
-      if (!controller_) {
-        debugLog("制御側を作れない: %s", name_.c_str());
-        return true;
-      }
-      if (controller_->initialize(&hostContext()) != kResultOk) {
+      // 制御側を持たない、あるいは作れないプラグインもある。
+      // 音を出すだけなら困らないので、そのまま進む。
+      if (controller_ && controller_->initialize(&hostContext()) != kResultOk) {
         error = "制御側を初期化できない: " + name_;
         return false;
       }
+      if (!controller_) {
+        debugLog("制御側がない: %s", name_.c_str());
+      }
     }
 
-    controller_->setComponentHandler(&handler_);
+    if (controller_) {
+      controller_->setComponentHandler(&handler_);
+    }
 
     if (separate) {
       componentPoint_ = FUnknownPtr<Vst::IConnectionPoint>(component_);
       controllerPoint_ = FUnknownPtr<Vst::IConnectionPoint>(controller_);
-      if (componentPoint_ && controllerPoint_) {
-        // 処理側の相手を tap にして、流れるメッセージを覗いてから制御側へ渡す。
+      // 制御側が無くても処理側は tap に繋ぐ。繋がっていないとプラグインは
+      // メッセージを送らないので、検査の結果を受け取れなくなる。
+      if (componentPoint_) {
         tap_.setup(controllerPoint_, &observer_);
         componentPoint_->connect(&tap_);
+      }
+      if (controllerPoint_ && componentPoint_) {
         controllerPoint_->connect(componentPoint_);
       }
+    }
+
+    if (!controller_) {
+      return true;
     }
 
     // コンポーネントの状態を制御側へ渡す。これを省くと、制御側はパラメータを
