@@ -49,7 +49,7 @@ add_library(vst3_hosting STATIC
   ${SDK}/public.sdk/source/vst/hosting/module_mac.mm
   ${SDK}/public.sdk/source/vst/hosting/parameterchanges.cpp
   ${SDK}/public.sdk/source/vst/hosting/pluginterfacesupport.cpp
-  ${SDK}/public.sdk/source/vst/hosting/plugprovider.cpp
+
   ${SDK}/public.sdk/source/vst/hosting/processdata.cpp
 )
 target_link_libraries(vst3_hosting PUBLIC vst3_base)

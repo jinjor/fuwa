@@ -7,18 +7,19 @@
 #include <utility>
 #include <vector>
 
+#include "pluginterfaces/base/ipluginbase.h"
 #include "pluginterfaces/vst/ivstaudioprocessor.h"
 #include "pluginterfaces/vst/ivstcomponent.h"
-#include "pluginterfaces/vst/ivstevents.h"
-#include "pluginterfaces/vst/ivstprocesscontext.h"
 #include "pluginterfaces/vst/ivsteditcontroller.h"
+#include "pluginterfaces/vst/ivstevents.h"
+#include "pluginterfaces/vst/ivstmessage.h"
+#include "pluginterfaces/vst/ivstprocesscontext.h"
 #include "pluginterfaces/vst/vstspeaker.h"
 #include "public.sdk/source/common/memorystream.h"
 #include "public.sdk/source/vst/hosting/eventlist.h"
 #include "public.sdk/source/vst/hosting/hostclasses.h"
 #include "public.sdk/source/vst/hosting/module.h"
 #include "public.sdk/source/vst/hosting/parameterchanges.h"
-#include "public.sdk/source/vst/hosting/plugprovider.h"
 #include "public.sdk/source/vst/hosting/processdata.h"
 
 namespace fuwa::plugin::vst3 {
@@ -27,7 +28,6 @@ namespace {
 using namespace Steinberg;
 
 // FUWA_DEBUG=1 でホストの内部状態を stderr に出す。
-// プラグインが無音のとき、どの段階で落ちているかを切り分けるため。
 bool debugEnabled() {
   static const bool on = std::getenv("FUWA_DEBUG") != nullptr;
   return on;
@@ -52,19 +52,94 @@ bool isInstrumentClass(const VST3::Hosting::ClassInfo& info) {
   return std::find(subs.begin(), subs.end(), "Instrument") != subs.end();
 }
 
-// ホストコンテキストはプロセスに一つあればよい。PlugProvider が参照する。
+// ホストコンテキストはプロセスに一つあればよい。
 Vst::IHostApplication& hostContext() {
   static Vst::HostApplication host;
-  static bool registered = [] {
-    Vst::PluginContextFactory::instance().setPluginContext(&host);
-    return true;
-  }();
-  (void)registered;
   return host;
 }
 
+// 以下の2つはホストが所有し、プラグインより長生きする。
+// 参照カウントで解放されては困るので addRef/release は数えない。
+class HostComponentHandler final : public Vst::IComponentHandler {
+ public:
+  tresult PLUGIN_API beginEdit(Vst::ParamID) override { return kResultOk; }
+  tresult PLUGIN_API performEdit(Vst::ParamID, Vst::ParamValue) override { return kResultOk; }
+  tresult PLUGIN_API endEdit(Vst::ParamID) override { return kResultOk; }
+  tresult PLUGIN_API restartComponent(int32 flags) override {
+    debugLog("restartComponent flags=%d", static_cast<int>(flags));
+    return kResultOk;
+  }
+
+  tresult PLUGIN_API queryInterface(const TUID iid, void** obj) override {
+    QUERY_INTERFACE(iid, obj, FUnknown::iid, Vst::IComponentHandler)
+    QUERY_INTERFACE(iid, obj, Vst::IComponentHandler::iid, Vst::IComponentHandler)
+    *obj = nullptr;
+    return kNoInterface;
+  }
+  uint32 PLUGIN_API addRef() override { return 1; }
+  uint32 PLUGIN_API release() override { return 1; }
+};
+
+class Attributes final : public MessageAttributes {
+ public:
+  explicit Attributes(Vst::IAttributeList* list) : list_(list) {}
+
+  bool getInt(const char* key, std::int64_t& value) const override {
+    int64 raw = 0;
+    if (list_ == nullptr || list_->getInt(key, raw) != kResultOk) {
+      return false;
+    }
+    value = raw;
+    return true;
+  }
+
+ private:
+  Vst::IAttributeList* list_;
+};
+
+// 処理側と制御側の間に挟まり、流れるメッセージを覗いてから素通しする。
+class MessageTap final : public Vst::IConnectionPoint {
+ public:
+  void setup(Vst::IConnectionPoint* target, MessageObserver* observer) {
+    target_ = target;
+    observer_ = observer;
+  }
+
+  tresult PLUGIN_API connect(Vst::IConnectionPoint*) override { return kResultOk; }
+  tresult PLUGIN_API disconnect(Vst::IConnectionPoint*) override { return kResultOk; }
+
+  tresult PLUGIN_API notify(Vst::IMessage* message) override {
+    if (message != nullptr) {
+      const char* id = message->getMessageID();
+      if (id != nullptr) {
+        debugLog("message %s", id);
+        if (observer_ != nullptr && *observer_) {
+          const Attributes attributes(message->getAttributes());
+          (*observer_)(id, attributes);
+        }
+      }
+    }
+    return target_ != nullptr ? target_->notify(message) : kResultOk;
+  }
+
+  tresult PLUGIN_API queryInterface(const TUID iid, void** obj) override {
+    QUERY_INTERFACE(iid, obj, FUnknown::iid, Vst::IConnectionPoint)
+    QUERY_INTERFACE(iid, obj, Vst::IConnectionPoint::iid, Vst::IConnectionPoint)
+    *obj = nullptr;
+    return kNoInterface;
+  }
+  uint32 PLUGIN_API addRef() override { return 1; }
+  uint32 PLUGIN_API release() override { return 1; }
+
+ private:
+  Vst::IConnectionPoint* target_ = nullptr;
+  MessageObserver* observer_ = nullptr;
+};
+
 class Vst3Instrument final : public Instrument {
  public:
+  explicit Vst3Instrument(MessageObserver observer) : observer_(std::move(observer)) {}
+
   ~Vst3Instrument() override {
     if (processor_) {
       processor_->setProcessing(false);
@@ -73,20 +148,26 @@ class Vst3Instrument final : public Instrument {
       component_->setActive(false);
     }
     data_.unprepare();
-    provider_ = nullptr;
-    processor_ = nullptr;
-    component_ = nullptr;
+
+    if (componentPoint_) {
+      componentPoint_->disconnect(&tap_);
+    }
+    if (controllerPoint_ && componentPoint_) {
+      controllerPoint_->disconnect(componentPoint_);
+    }
+    if (controller_) {
+      controller_->setComponentHandler(nullptr);
+    }
   }
 
   bool open(const std::filesystem::path& path, std::string_view className, std::string& error) {
-    hostContext();
-
     module_ = VST3::Hosting::Module::create(path.string(), error);
     if (!module_) {
       return false;
     }
 
-    const auto classes = module_->getFactory().classInfos();
+    const auto& factory = module_->getFactory();
+    const auto classes = factory.classInfos();
     auto it = classes.end();
     if (className.empty()) {
       // 指定がなければインストゥルメントを選ぶ。エフェクトを掴むと音が出ない。
@@ -103,24 +184,34 @@ class Vst3Instrument final : public Instrument {
                                 : "クラスが見つからない: " + std::string(className);
       return false;
     }
-
     name_ = it->name();
-    provider_ = owned(new Vst::PlugProvider(module_->getFactory(), *it, true));
-    if (!provider_->initialize()) {
-      error = "プラグインの初期化に失敗: " + name_;
+
+    component_ = factory.createInstance<Vst::IComponent>(it->ID());
+    if (!component_) {
+      error = "コンポーネントを作れない: " + name_;
+      return false;
+    }
+    if (component_->initialize(&hostContext()) != kResultOk) {
+      error = "コンポーネントを初期化できない: " + name_;
       return false;
     }
 
-    component_ = provider_->getComponentPtr();
     processor_ = FUnknownPtr<Vst::IAudioProcessor>(component_);
-    if (!component_ || !processor_) {
+    if (!processor_) {
       error = "IAudioProcessor を取得できない: " + name_;
       return false;
     }
-    return true;
+
+    return setupController(factory, error);
   }
 
   bool prepare(double sampleRate, std::int32_t maxBlockSize, std::string& error) override {
+    // バス配置を明示しないと音を出さないプラグインがある。
+    // 既定の配置をそのまま読み返して、それを受け入れると伝える。
+    if (!negotiateBuses(error)) {
+      return false;
+    }
+
     // kOffline を使うプラグインは少なく、実装が枯れていないことがある。
     // オフラインのレンダリングでも kRealtime で回す。
     Vst::ProcessSetup setup{};
@@ -128,12 +219,6 @@ class Vst3Instrument final : public Instrument {
     setup.symbolicSampleSize = Vst::kSample32;
     setup.maxSamplesPerBlock = maxBlockSize;
     setup.sampleRate = sampleRate;
-
-    // バス配置を明示しないと音を出さないプラグインがある。
-    // 既定の配置をそのまま読み返して、それを受け入れると伝える。
-    if (!negotiateBuses(error)) {
-      return false;
-    }
 
     if (processor_->setupProcessing(setup) != kResultOk) {
       error = "setupProcessing に失敗: " + name_;
@@ -156,13 +241,6 @@ class Vst3Instrument final : public Instrument {
       return false;
     }
 
-    debugLog("bus audio-in=%d audio-out=%d event-in=%d event-out=%d",
-             component_->getBusCount(Vst::kAudio, Vst::kInput),
-             component_->getBusCount(Vst::kAudio, Vst::kOutput),
-             component_->getBusCount(Vst::kEvent, Vst::kInput),
-             component_->getBusCount(Vst::kEvent, Vst::kOutput));
-    debugLog("data numInputs=%d numOutputs=%d", data_.numInputs, data_.numOutputs);
-
     channelCount_ = data_.numOutputs > 0 ? data_.outputs[0].numChannels : 0;
     if (channelCount_ <= 0) {
       error = "出力チャンネルがない: " + name_;
@@ -175,7 +253,8 @@ class Vst3Instrument final : public Instrument {
     context_.timeSigNumerator = 4;
     context_.timeSigDenominator = 4;
     context_.state = Vst::ProcessContext::kPlaying | Vst::ProcessContext::kTempoValid |
-                     Vst::ProcessContext::kTimeSigValid | Vst::ProcessContext::kProjectTimeMusicValid;
+                     Vst::ProcessContext::kTimeSigValid |
+                     Vst::ProcessContext::kProjectTimeMusicValid;
 
     data_.inputEvents = &events_;
     data_.inputParameterChanges = &paramsIn_;
@@ -184,8 +263,10 @@ class Vst3Instrument final : public Instrument {
     data_.processMode = Vst::kRealtime;
     data_.symbolicSampleSize = Vst::kSample32;
 
-    syncControllerState();
-    dumpParameters();
+    debugLog("bus audio-in=%d audio-out=%d event-in=%d channels=%d",
+             component_->getBusCount(Vst::kAudio, Vst::kInput),
+             component_->getBusCount(Vst::kAudio, Vst::kOutput),
+             component_->getBusCount(Vst::kEvent, Vst::kInput), channelCount_);
     return true;
   }
 
@@ -223,10 +304,6 @@ class Vst3Instrument final : public Instrument {
       processReported_ = true;
       debugLog("process が失敗を返した: %d", static_cast<int>(result));
     }
-    if (eventCount > 0) {
-      debugLog("events=%zu offset=%d pitch=%d on=%d", eventCount, events[0].sampleOffset,
-               static_cast<int>(events[0].pitch), events[0].on ? 1 : 0);
-    }
 
     const std::int32_t available = std::min(channelCount, channelCount_);
     for (std::int32_t ch = 0; ch < channelCount; ++ch) {
@@ -248,43 +325,53 @@ class Vst3Instrument final : public Instrument {
   const std::string& name() const override { return name_; }
 
  private:
-  // コンポーネントの状態をコントローラに渡す。PlugProvider はここまでやらない。
-  void syncControllerState() {
-    auto controller = provider_->getControllerPtr();
-    if (!controller) {
-      return;
-    }
-    MemoryStream stream;
-    if (component_->getState(&stream) != kResultOk) {
-      return;
-    }
-    stream.seek(0, IBStream::kIBSeekSet, nullptr);
-    controller->setComponentState(&stream);
-  }
+  bool setupController(const VST3::Hosting::PluginFactory& factory, std::string& error) {
+    // 処理側と制御側が分かれていないプラグインもある。
+    controller_ = FUnknownPtr<Vst::IEditController>(component_);
+    const bool separate = !controller_;
 
-  void dumpParameters() {
-    if (!debugEnabled()) {
-      return;
-    }
-    auto controller = provider_->getControllerPtr();
-    if (!controller) {
-      debugLog("controller なし");
-      return;
-    }
-    const int32 count = controller->getParameterCount();
-    debugLog("parameters=%d", count);
-    for (int32 i = 0; i < count && i < 24; ++i) {
-      Vst::ParameterInfo info{};
-      if (controller->getParameterInfo(i, info) != kResultOk) {
-        continue;
+    if (separate) {
+      TUID controllerId;
+      if (component_->getControllerClassId(controllerId) != kResultOk) {
+        // 制御側を持たないプラグインもある。音を出すだけなら困らない。
+        debugLog("制御側のクラス ID がない: %s", name_.c_str());
+        return true;
       }
-      char title[128] = {};
-      for (int n = 0; n < 127 && info.title[n]; ++n) {
-        title[n] = static_cast<char>(info.title[n]);
+      controller_ = factory.createInstance<Vst::IEditController>(VST3::UID(controllerId));
+      if (!controller_) {
+        debugLog("制御側を作れない: %s", name_.c_str());
+        return true;
       }
-      debugLog("  [%d] %-24s value=%.3f default=%.3f", static_cast<int>(info.id), title,
-               controller->getParamNormalized(info.id), info.defaultNormalizedValue);
+      if (controller_->initialize(&hostContext()) != kResultOk) {
+        error = "制御側を初期化できない: " + name_;
+        return false;
+      }
     }
+
+    controller_->setComponentHandler(&handler_);
+
+    if (separate) {
+      componentPoint_ = FUnknownPtr<Vst::IConnectionPoint>(component_);
+      controllerPoint_ = FUnknownPtr<Vst::IConnectionPoint>(controller_);
+      if (componentPoint_ && controllerPoint_) {
+        // 処理側の相手を tap にして、流れるメッセージを覗いてから制御側へ渡す。
+        tap_.setup(controllerPoint_, &observer_);
+        componentPoint_->connect(&tap_);
+        controllerPoint_->connect(componentPoint_);
+      }
+    }
+
+    // コンポーネントの状態を制御側へ渡す。これを省くと、制御側はパラメータを
+    // 初期値のまま（多くは 0）だと思い込む。SDK の PlugProvider はここをやらない。
+    //
+    // 必ず接続の後に行う。接続で受け取った情報を使ってパラメータ表を組み立てる
+    // プラグインがあり、先にこれを呼ぶと未初期化のまま参照して落ちる。
+    MemoryStream stream;
+    if (component_->getState(&stream) == kResultOk) {
+      stream.seek(0, IBStream::kIBSeekSet, nullptr);
+      controller_->setComponentState(&stream);
+    }
+    return true;
   }
 
   bool negotiateBuses(std::string& error) {
@@ -318,10 +405,17 @@ class Vst3Instrument final : public Instrument {
     }
   }
 
+  MessageObserver observer_;
+  HostComponentHandler handler_;
+  MessageTap tap_;
+
   VST3::Hosting::Module::Ptr module_;
-  IPtr<Vst::PlugProvider> provider_;
   IPtr<Vst::IComponent> component_;
+  IPtr<Vst::IEditController> controller_;
   IPtr<Vst::IAudioProcessor> processor_;
+  IPtr<Vst::IConnectionPoint> componentPoint_;
+  IPtr<Vst::IConnectionPoint> controllerPoint_;
+
   Vst::HostProcessData data_;
   Vst::EventList events_{256};
   Vst::ParameterChanges paramsIn_;
@@ -335,7 +429,6 @@ class Vst3Instrument final : public Instrument {
 }  // namespace
 
 std::vector<ClassInfo> listClasses(const std::filesystem::path& bundlePath, std::string& error) {
-  hostContext();
   auto module = VST3::Hosting::Module::create(bundlePath.string(), error);
   if (!module) {
     return {};
@@ -352,12 +445,18 @@ std::vector<ClassInfo> listClasses(const std::filesystem::path& bundlePath, std:
 }
 
 std::unique_ptr<Instrument> load(const std::filesystem::path& bundlePath,
-                                 std::string_view className, std::string& error) {
-  auto instrument = std::make_unique<Vst3Instrument>();
+                                 std::string_view className, MessageObserver observer,
+                                 std::string& error) {
+  auto instrument = std::make_unique<Vst3Instrument>(std::move(observer));
   if (!instrument->open(bundlePath, className, error)) {
     return nullptr;
   }
   return instrument;
+}
+
+std::unique_ptr<Instrument> load(const std::filesystem::path& bundlePath,
+                                 std::string_view className, std::string& error) {
+  return load(bundlePath, className, {}, error);
 }
 
 }  // namespace fuwa::plugin::vst3
