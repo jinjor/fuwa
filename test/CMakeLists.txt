@@ -15,6 +15,15 @@ endfunction()
 fuwa_test(test_wav audio/wav_test.cpp)
 target_link_libraries(test_wav PRIVATE fuwa_audio)
 
+fuwa_test(test_midi model/midi_test.cpp)
+target_link_libraries(test_midi PRIVATE fuwa_model)
+
+fuwa_test(test_project model/project_test.cpp)
+target_link_libraries(test_project PRIVATE fuwa_model)
+
+fuwa_test(test_protocol api/protocol_test.cpp)
+target_link_libraries(test_protocol PRIVATE fuwa_api)
+
 fuwa_test(test_player engine/player_test.cpp)
 target_link_libraries(test_player PRIVATE fuwa_engine)
 
@@ -24,6 +33,17 @@ target_link_libraries(test_vst3 PRIVATE fuwa_engine fuwa_options)
 target_include_directories(test_vst3 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 add_dependencies(test_vst3 mda-vst3)
 add_test(NAME test_vst3 COMMAND test_vst3 $<TARGET_BUNDLE_DIR:mda-vst3>)
+
+# ノートを置いてから音になるまでを、実在の音源で通しで確かめる。
+add_executable(test_studio engine/studio_test.cpp)
+target_link_libraries(test_studio PRIVATE fuwa_engine fuwa_options)
+target_include_directories(test_studio PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+add_dependencies(test_studio mda-vst3)
+add_test(NAME test_studio COMMAND test_studio $<TARGET_BUNDLE_DIR:mda-vst3>)
+
+# CLI からサーバまで。ソケットを本当に張るのはここだけ。
+add_test(NAME test_ipc COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/api/ipc.sh
+  $<TARGET_FILE:fuwa> $<TARGET_BUNDLE_DIR:mda-vst3> ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/scale.mid)
 
 # hostchecker はホストの振る舞いを検査して結果をメッセージで返す。
 # このテストだけは SDK のヘッダ（logevents.h）を直接読むので、自分で SDK を要求する。

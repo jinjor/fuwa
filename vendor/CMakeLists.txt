@@ -72,3 +72,10 @@ add_library(vst3_plugin OBJECT
   ${SDK}/public.sdk/source/main/macmain.cpp
 )
 target_link_libraries(vst3_plugin PUBLIC vst3_base)
+
+# JSON の読み書き。SDK が同梱している sheredom/json.h（パブリックドメイン）を、
+# それ単体のライブラリとして使う。VST3 とは無関係なので SDK のターゲットとは分ける。
+# SYSTEM にしてあるので、こちらの警告設定に引っかからない。
+add_library(vendor_json INTERFACE)
+target_include_directories(vendor_json SYSTEM INTERFACE
+  ${SDK}/public.sdk/source/vst/moduleinfo)

@@ -4,9 +4,6 @@
 
 #include <algorithm>
 #include <atomic>
-#include <chrono>
-#include <cstdint>
-#include <thread>
 
 namespace fuwa::audio {
 namespace {
@@ -21,7 +18,7 @@ struct Playback {
   std::int32_t channelCount = 0;
   std::int64_t frameCount = 0;
   std::atomic<std::int64_t> position{0};
-  std::atomic<bool> finished{false};
+  std::atomic<bool> finished{true};
 };
 
 // realtime-begin
@@ -57,28 +54,26 @@ OSStatus renderCallback(void* refCon, AudioUnitRenderActionFlags* flags, const A
 }
 // realtime-end
 
-struct UnitHandle {
+}  // namespace
+
+// ユニットより Playback を先に宣言する。メンバの破棄は宣言の逆順なので、
+// 逆にするとユニットを止める前に Playback が消え、コールバックが死んだものを読む。
+struct Device::Impl {
+  Playback playback;
   AudioUnit unit = nullptr;
   bool initialized = false;
   bool running = false;
-
-  ~UnitHandle() {
-    if (running) {
-      AudioOutputUnitStop(unit);
-    }
-    if (initialized) {
-      AudioUnitUninitialize(unit);
-    }
-    if (unit != nullptr) {
-      AudioComponentInstanceDispose(unit);
-    }
-  }
 };
 
-}  // namespace
+Device::Device() : impl_(std::make_unique<Impl>()) {}
 
-bool play(const std::vector<std::vector<float>>& channels, double sampleRate, std::string& error) {
-  if (channels.empty() || channels.front().empty()) {
+Device::~Device() { stop(); }
+
+bool Device::start(const float* const* channels, std::int32_t channelCount, std::int64_t frameCount,
+                   double sampleRate, std::string& error) {
+  stop();
+
+  if (channels == nullptr || channelCount <= 0 || frameCount <= 0) {
     error = "nothing to play";
     return false;
   }
@@ -94,26 +89,17 @@ bool play(const std::vector<std::vector<float>>& channels, double sampleRate, st
     return false;
   }
 
-  // 再生に使うものは UnitHandle より先に作る。ローカルの破棄は宣言の逆順なので、
-  // 逆にするとユニットを止める前にこれらが消え、コールバックが死んだものを読む。
-  std::vector<const float*> pointers;
-  pointers.reserve(channels.size());
-  for (const std::vector<float>& channel : channels) {
-    pointers.push_back(channel.data());
-  }
+  impl_->playback.channels = channels;
+  impl_->playback.channelCount = channelCount;
+  impl_->playback.frameCount = frameCount;
+  impl_->playback.position.store(0, std::memory_order_relaxed);
+  impl_->playback.finished.store(false, std::memory_order_release);
 
-  Playback playback;
-  playback.channels = pointers.data();
-  playback.channelCount = static_cast<std::int32_t>(channels.size());
-  playback.frameCount = static_cast<std::int64_t>(channels.front().size());
-
-  UnitHandle handle;
-  if (AudioComponentInstanceNew(component, &handle.unit) != noErr) {
+  if (AudioComponentInstanceNew(component, &impl_->unit) != noErr) {
     error = "cannot create the output unit";
+    stop();
     return false;
   }
-
-  const auto channelCount = static_cast<UInt32>(channels.size());
 
   // 非インターリーブの 32bit float。チャンネルごとにバッファが分かれるので、
   // レンダリング結果をそのまま書き写せる。
@@ -123,46 +109,71 @@ bool play(const std::vector<std::vector<float>>& channels, double sampleRate, st
   format.mFormatFlags =
       kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked | kAudioFormatFlagIsNonInterleaved;
   format.mFramesPerPacket = 1;
-  format.mChannelsPerFrame = channelCount;
+  format.mChannelsPerFrame = static_cast<UInt32>(channelCount);
   format.mBitsPerChannel = 32;
   format.mBytesPerFrame = sizeof(float);
   format.mBytesPerPacket = sizeof(float);
 
-  if (AudioUnitSetProperty(handle.unit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0,
+  if (AudioUnitSetProperty(impl_->unit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0,
                            &format, sizeof(format)) != noErr) {
     error = "cannot set the output format";
+    stop();
     return false;
   }
 
   AURenderCallbackStruct callback{};
   callback.inputProc = renderCallback;
-  callback.inputProcRefCon = &playback;
-  if (AudioUnitSetProperty(handle.unit, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input,
+  callback.inputProcRefCon = &impl_->playback;
+  if (AudioUnitSetProperty(impl_->unit, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input,
                            0, &callback, sizeof(callback)) != noErr) {
     error = "cannot set the render callback";
+    stop();
     return false;
   }
 
-  if (AudioUnitInitialize(handle.unit) != noErr) {
+  if (AudioUnitInitialize(impl_->unit) != noErr) {
     error = "cannot initialize the output unit";
+    stop();
     return false;
   }
-  handle.initialized = true;
+  impl_->initialized = true;
 
-  if (AudioOutputUnitStart(handle.unit) != noErr) {
+  if (AudioOutputUnitStart(impl_->unit) != noErr) {
     error = "cannot start playback";
+    stop();
     return false;
   }
-  handle.running = true;
-
-  while (!playback.finished.load(std::memory_order_acquire)) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-  }
-  // 最後のバッファがデバイスから出きるのを待つ。120ms に根拠はない。
-  // 本来はデバイスのレイテンシを問い合わせて決めるべきだが、Step 0 では
-  // 鳴らして確かめられれば足りるので余裕を見た定数で済ませている。
-  std::this_thread::sleep_for(std::chrono::milliseconds(120));
+  impl_->running = true;
   return true;
+}
+
+void Device::stop() {
+  // AudioOutputUnitStop はコールバックが抜けるまで戻らない。
+  // これが戻った後なら、呼んだ側はバッファを捨ててよい。
+  if (impl_->running) {
+    AudioOutputUnitStop(impl_->unit);
+    impl_->running = false;
+  }
+  if (impl_->initialized) {
+    AudioUnitUninitialize(impl_->unit);
+    impl_->initialized = false;
+  }
+  if (impl_->unit != nullptr) {
+    AudioComponentInstanceDispose(impl_->unit);
+    impl_->unit = nullptr;
+  }
+  impl_->playback.finished.store(true, std::memory_order_release);
+  impl_->playback.channels = nullptr;
+  impl_->playback.channelCount = 0;
+  impl_->playback.frameCount = 0;
+}
+
+bool Device::playing() const {
+  return impl_->running && !impl_->playback.finished.load(std::memory_order_acquire);
+}
+
+std::int64_t Device::position() const {
+  return impl_->playback.position.load(std::memory_order_relaxed);
 }
 
 }  // namespace fuwa::audio

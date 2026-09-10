@@ -28,8 +28,9 @@ for file in $(find src \( -name '*.h' -o -name '*.cpp' -o -name '*.mm' \) | sort
   fi
 
   # VST3 SDK のヘッダを読めるのは plugin だけ。上位層に VST3 の型を漏らさないため。
+  # <> でも "" でも見る。片方だけ見ていると、書き方を変えるだけで抜けられる。
   if [ "$layer" != plugin ] &&
-     grep -qE '^#include "(pluginterfaces|public\.sdk|base)/' "$file"; then
+     grep -qE '^#include [<"](pluginterfaces|public\.sdk|base)/' "$file"; then
     report "$file: VST3 SDK のヘッダを読めるのは plugin 層だけ"
   fi
 
